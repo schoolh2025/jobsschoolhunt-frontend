@@ -1,0 +1,104 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Details - Jobs.SchoolHunt</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://kit.fontawesome.com/a076d05399.js"></script>
+</head>
+<body class="bg-gray-100">
+  <header class="bg-blue-600 text-white p-4">
+    <h1 class="text-2xl font-bold">Jobs.SchoolHunt</h1>
+  </header>
+  <div class="flex">
+    <aside class="w-64 bg-white p-4 shadow">
+      <nav>
+        <a href="/" class="block py-2"><i class="fas fa-home"></i> <span data-lang="en">Home</span><span data-lang="hi" style="display:none;">होम</span></a>
+        <a href="/admin/index.html" target="_blank" class="block py-2"><i class="fas fa-user-shield"></i> <span data-lang="en">Admin Panel</span><span data-lang="hi" style="display:none;">एडमिन पैनल</span></a>
+      </nav>
+      <div class="mt-4">
+        <label for="language" class="block">Language:</label>
+        <select id="language" class="border p-2 w-full">
+          <option value="en">English</option>
+          <option value="hi">Hindi</option>
+        </select>
+      </div>
+    </aside>
+    <main class="flex-1 p-4">
+      <section>
+        <h2 id="postTitle" class="text-xl font-bold mb-4"></h2>
+        <p id="postContent" class="mb-4"></p>
+        <p><a id="officialLink" href="#" target="_blank" class="text-blue-600"><span data-lang="en">Official Link</span><span data-lang="hi" style="display:none;">आधिकारिक लिंक</span></a></p>
+      </section>
+    </main>
+  </div>
+  <script>
+    document.getElementById('language').addEventListener('change', (e) => {
+      const lang = e.target.value;
+      document.querySelectorAll('[data-lang]').forEach(el => {
+        el.style.display = el.getAttribute('data-lang') === lang ? 'inline' : 'none';
+      });
+    });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const title = urlParams.get('title');
+      try {
+        const res = await fetch('https://jobsschoolhunt-backend.onrender.com/api/admin/jobs');
+        const jobs = await res.json();
+        const job = jobs.find(j => j.title === title);
+        if (job) {
+          document.getElementById('postTitle').textContent = job.title;
+          document.getElementById('postContent').textContent = job.article || 'No article provided';
+          document.getElementById('officialLink').href = job.link || '#';
+          document.getElementById('officialLink').style.display = job.link ? 'inline' : 'none';
+        } else {
+          document.getElementById('postContent').textContent = 'Job not found';
+        }
+      } catch (err) {
+        document.getElementById('postContent').textContent = 'Failed to load job details';
+      }
+    });
+  </script>
+</body>
+</html>
