@@ -45,16 +45,26 @@
   <title>Job Details - Jobs.SchoolHunt</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script src="https://kit.fontawesome.com/a076d05399.js"></script>
+  <style>
+    .loading-spinner { display: none; }
+    .loading-spinner.active { display: block; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
 </head>
-<body class="bg-gray-100">
-  <header class="bg-blue-600 text-white p-4">
-    <h1 class="text-2xl font-bold">Jobs.SchoolHunt</h1>
+<body class="bg-gray-100 font-sans">
+  <header class="bg-blue-600 text-white p-4 sticky top-0 z-10">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-xl sm:text-2xl font-bold">Jobs.SchoolHunt</h1>
+      <button id="toggle-sidebar" class="sm:hidden text-white focus:outline-none">
+        <i class="fas fa-bars"></i>
+      </button>
+    </div>
   </header>
-  <div class="flex">
-    <aside class="w-64 bg-white p-4 shadow">
+  <div class="flex flex-col sm:flex-row">
+    <aside id="sidebar" class="w-full sm:w-64 bg-white p-4 shadow sm:block hidden">
       <nav>
         <a href="/" class="block py-2"><i class="fas fa-home"></i> <span data-lang="en">Home</span><span data-lang="hi" style="display:none;">होम</span></a>
-        <a href="/admin/index.html" target="_blank" class="block py-2"><i class="fas fa-user-shield"></i> <span data-lang="en">Admin Panel</span><span data-lang="hi" style="display:none;">एडमिन पैनल</span></a>
+        <a href="/admin.html" target="_blank" class="block py-2"><i class="fas fa-user-shield"></i> <span data-lang="en">Admin Panel</span><span data-lang="hi" style="display:none;">एडमिन पैनल</span></a>
       </nav>
       <div class="mt-4">
         <label for="language" class="block">Language:</label>
@@ -64,15 +74,23 @@
         </select>
       </div>
     </aside>
-    <main class="flex-1 p-4">
+    <main class="flex-1 p-4 container mx-auto">
       <section>
-        <h2 id="postTitle" class="text-xl font-bold mb-4"></h2>
-        <p id="postContent" class="mb-4"></p>
-        <p><a id="officialLink" href="#" target="_blank" class="text-blue-600"><span data-lang="en">Official Link</span><span data-lang="hi" style="display:none;">आधिकारिक लिंक</span></a></p>
+        <div id="loading" class="loading-spinner active text-center">
+          <i class="fas fa-spinner text-2xl text-blue-600"></i>
+        </div>
+        <div id="error" class="hidden text-red-500 text-center"></div>
+        <h2 id="postTitle" class="text-lg sm:text-xl font-bold mb-4"></h2>
+        <div id="postContent" class="mb-4 space-y-2"></div>
+        <p id="officialLinkContainer" class="hidden"><a id="officialLink" href="#" target="_blank" class="text-blue-600 hover:underline"><span data-lang="en">Official Link</span><span data-lang="hi" style="display:none;">आधिकारिक लिंक</span></a></p>
       </section>
     </main>
   </div>
   <script>
+    function formatDate(dateString) {
+      return dateString ? new Date(dateString).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A';
+    }
+
     document.getElementById('language').addEventListener('change', (e) => {
       const lang = e.target.value;
       document.querySelectorAll('[data-lang]').forEach(el => {
@@ -80,23 +98,52 @@
       });
     });
 
+    document.getElementById('toggle-sidebar')?.addEventListener('click', () => {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('hidden');
+    });
+
     document.addEventListener('DOMContentLoaded', async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const title = urlParams.get('title');
+      const loading = document.getElementById('loading');
+      const error = document.getElementById('error');
       try {
+        loading.classList.add('active');
+        error.classList.add('hidden');
         const res = await fetch('https://jobsschoolhunt-backend.onrender.com/api/admin/jobs');
+        if (!res.ok) throw new Error('Network response was not ok');
         const jobs = await res.json();
         const job = jobs.find(j => j.title === title);
         if (job) {
           document.getElementById('postTitle').textContent = job.title;
-          document.getElementById('postContent').textContent = job.article || 'No article provided';
-          document.getElementById('officialLink').href = job.link || '#';
-          document.getElementById('officialLink').style.display = job.link ? 'inline' : 'none';
+          document.getElementById('postContent').innerHTML = `
+            <p><strong><span data-lang="en">Category</span><span data-lang="hi" style="display:none;">श्रेणी</span>:</strong> ${job.category || 'N/A'}</p>
+            <p><strong><span data-lang="en">Location</span><span data-lang="hi" style="display:none;">स्थान</span>:</strong> ${job.location || 'N/A'}</p>
+            <p><strong><span data-lang="en">Salary</span><span data-lang="hi" style="display:none;">वेतन</span>:</strong> ${job.salary || 'Not disclosed'}</p>
+            <p><strong><span data-lang="en">Job Type</span><span data-lang="hi" style="display:none;">नौकरी का प्रकार</span>:</strong> ${job.jobType || 'N/A'}</p>
+            <p><strong><span data-lang="en">Posted on</span><span data-lang="hi" style="display:none;">पोस्ट किया गया</span>:</strong> ${formatDate(job.postDate)}</p>
+            <p><strong><span data-lang="en">Application Start</span><span data-lang="hi" style="display:none;">आवेदन शुरू</span>:</strong> ${formatDate(job.applicationStartDate)}</p>
+            <p><strong><span data-lang="en">Application End</span><span data-lang="hi" style="display:none;">आवेदन समाप्त</span>:</strong> ${formatDate(job.applicationEndDate)}</p>
+            ${job.extendedDate ? `<p><strong><span data-lang="en">Extended Deadline</span><span data-lang="hi" style="display:none;">विस्तारित अंतिम तिथि</span>:</strong> ${formatDate(job.extendedDate)}</p>` : ''}
+            <p><strong><span data-lang="en">Description</span><span data-lang="hi" style="display:none;">विवरण</span>:</strong> ${job.article || 'No description provided'}</p>
+          `;
+          const linkContainer = document.getElementById('officialLinkContainer');
+          const link = document.getElementById('officialLink');
+          if (job.link) {
+            link.href = job.link;
+            linkContainer.classList.remove('hidden');
+          }
         } else {
-          document.getElementById('postContent').textContent = 'Job not found';
+          error.classList.remove('hidden');
+          error.textContent = 'Job not found';
         }
       } catch (err) {
-        document.getElementById('postContent').textContent = 'Failed to load job details';
+        error.classList.remove('hidden');
+        error.textContent = err.message === 'Network response was not ok' ? 
+          'Failed to load job details. Please try again later.' : 'Unable to connect to the server.';
+      } finally {
+        loading.classList.remove('active');
       }
     });
   </script>

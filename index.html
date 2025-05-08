@@ -45,13 +45,23 @@
   <title>Jobs.SchoolHunt</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script src="https://kit.fontawesome.com/a076d05399.js"></script>
+  <style>
+    .loading-spinner { display: none; }
+    .loading-spinner.active { display: block; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
 </head>
-<body class="bg-gray-100">
-  <header class="bg-blue-600 text-white p-4">
-    <h1 class="text-2xl font-bold">Jobs.SchoolHunt</h1>
+<body class="bg-gray-100 font-sans">
+  <header class="bg-blue-600 text-white p-4 sticky top-0 z-10">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-xl sm:text-2xl font-bold">Jobs.SchoolHunt</h1>
+      <button id="toggle-sidebar" class="sm:hidden text-white focus:outline-none">
+        <i class="fas fa-bars"></i>
+      </button>
+    </div>
   </header>
-  <div class="flex">
-    <aside class="w-64 bg-white p-4 shadow">
+  <div class="flex flex-col sm:flex-row">
+    <aside id="sidebar" class="w-full sm:w-64 bg-white p-4 shadow sm:block hidden">
       <nav>
         <a href="/" class="block py-2"><i class="fas fa-home"></i> <span data-lang="en">Home</span><span data-lang="hi" style="display:none;">होम</span></a>
         <a href="/admin.html" target="_blank" class="block py-2"><i class="fas fa-user-shield"></i> <span data-lang="en">Admin Panel</span><span data-lang="hi" style="display:none;">एडमिन पैनल</span></a>
@@ -64,10 +74,14 @@
         </select>
       </div>
     </aside>
-    <main class="flex-1 p-4">
+    <main class="flex-1 p-4 container mx-auto">
       <section id="latest-jobs" class="mb-8">
-        <h2 class="text-xl font-bold mb-4"><span data-lang="en">Latest Jobs</span><span data-lang="hi" style="display:none;">नवीनतम नौकरियाँ</span></h2>
-        <div id="latest-jobs-container" class="space-y-4"></div>
+        <h2 class="text-lg sm:text-xl font-bold mb-4"><span data-lang="en">Latest Jobs</span><span data-lang="hi" style="display:none;">नवीनतम नौकरियाँ</span></h2>
+        <div id="loading" class="loading-spinner active text-center">
+          <i class="fas fa-spinner text-2xl text-blue-600"></i>
+        </div>
+        <div id="error" class="hidden text-red-500 text-center"></div>
+        <div id="latest-jobs-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
       </section>
     </main>
   </div>
@@ -80,28 +94,41 @@
     }
 
     function displayData(data, container) {
-      data.sort((a, b) => new Date(b.postDate) - new Date(a.postDate)); // Sort by postDate, newest first
+      data.sort((a, b) => new Date(b.postDate) - new Date(a.postDate));
       container.innerHTML = data.map(item => `
-        <div class="bg-white p-4 rounded shadow">
-          <h3 class="font-bold">${item.title}</h3>
+        <div class="bg-white p-4 rounded shadow hover:shadow-lg transition">
+          <h3 class="font-bold text-lg">${item.title}</h3>
+          <p><span data-lang="en">Category</span><span data-lang="hi" style="display:none;">श्रेणी</span>: ${item.category || 'N/A'}</p>
+          <p><span data-lang="en">Location</span><span data-lang="hi" style="display:none;">स्थान</span>: ${item.location || 'N/A'}</p>
+          <p><span data-lang="en">Salary</span><span data-lang="hi" style="display:none;">वेतन</span>: ${item.salary || 'Not disclosed'}</p>
+          <p><span data-lang="en">Job Type</span><span data-lang="hi" style="display:none;">नौकरी का प्रकार</span>: ${item.jobType || 'N/A'}</p>
           <p><span data-lang="en">Posted on</span><span data-lang="hi" style="display:none;">पोस्ट किया गया</span>: ${formatDate(item.postDate)}</p>
           <p><span data-lang="en">Application Deadline</span><span data-lang="hi" style="display:none;">आवेदन की अंतिम तिथि</span>: ${formatDate(item.applicationEndDate)}</p>
           ${item.extendedDate ? `<p><span data-lang="en">Extended Deadline</span><span data-lang="hi" style="display:none;">विस्तारित अंतिम तिथि</span>: ${formatDate(item.extendedDate)}</p>` : ''}
-          ${item.link ? `<p><a href="${item.link}" target="_blank" class="text-blue-600"><span data-lang="en">Official Link</span><span data-lang="hi" style="display:none;">आधिकारिक लिंक</span></a></p>` : ''}
-          <a href="/job-details.html?title=${encodeURIComponent(item.title)}" class="text-blue-600"><span data-lang="en">View Details</span><span data-lang="hi" style="display:none;">विवरण देखें</span></a>
+          ${item.link ? `<p><a href="${item.link}" target="_blank" class="text-blue-600 hover:underline"><span data-lang="en">Official Link</span><span data-lang="hi" style="display:none;">आधिकारिक लिंक</span></a></p>` : ''}
+          <a href="/job-details.html?title=${encodeURIComponent(item.title)}" class="text-blue-600 hover:underline"><span data-lang="en">View Details</span><span data-lang="hi" style="display:none;">विवरण देखें</span></a>
         </div>
       `).join('');
     }
 
     async function fetchAndDisplay(endpoint, containerId, sampleData) {
       const container = document.getElementById(containerId);
+      const loading = document.getElementById('loading');
+      const error = document.getElementById('error');
       try {
+        loading.classList.add('active');
+        error.classList.add('hidden');
         const res = await fetch('https://jobsschoolhunt-backend.onrender.com/api/admin/jobs');
         if (!res.ok) throw new Error('Network response was not ok');
         const data = await res.json();
         displayData(data, container);
       } catch (err) {
-        container.innerHTML = `<div class="text-red-500"><span data-lang="en">Failed to load data</span><span data-lang="hi" style="display:none;">डेटा लोड नहीं हो पाया</span></div>`;
+        error.classList.remove('hidden');
+        error.textContent = err.message === 'Network response was not ok' ? 
+          'Failed to load jobs. Please try again later.' : 'Unable to connect to the server.';
+        displayData(sampleData, container);
+      } finally {
+        loading.classList.remove('active');
       }
     }
 
@@ -110,6 +137,11 @@
       document.querySelectorAll('[data-lang]').forEach(el => {
         el.style.display = el.getAttribute('data-lang') === lang ? 'inline' : 'none';
       });
+    });
+
+    document.getElementById('toggle-sidebar')?.addEventListener('click', () => {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('hidden');
     });
 
     fetchAndDisplay('jobs', 'latest-jobs-container', SAMPLE_JOBS);
